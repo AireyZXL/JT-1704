@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jt.order.mapper.OrderMapper">
+    <!-- 配置订单对象 -->
+    <resultMap type="Orders" id="orderRM" autoMapping="true">
+       <id property="orderId" column="order_id"/>
+       <!-- 有顺序，先配置一对一，再一对多 -->
+       <!-- 一对一 -->
+       <association select="queryOrderShippingByOrderId" property="orderShipping"
+        javaType="OrderShipping" column="order_id">
+         <id property="orderId" column="order_id"/>
+       </association>
+       <!-- 一对多 -->
+       <collection select="queryOrderItemByOrderId" property="orderItems"
+       ofType="OrderItem" column="order_id">
+          <id property="orderId" column="order_id"/>
+          <id property="itemId" column="item_id"/>
+       </collection>
+       
+    </resultMap>
+
+    <!-- 订单新增，新增订单，订单下的商品，订单下的物流信息 -->
+    <insert id="create" parameterType="Orders">
+
+insert into tb_order 
+(order_id,payment,payment_type,post_fee,status,payment_time,
+consign_time,end_time,close_time,shipping_name,shipping_code,
+user_id,buyer_message,buyer_nick,buyer_rate,create_time,update_time) 
+values
+(#{orderId},#{payment},#{paymentType},#{postFee},#{status},#{paymentTime},
+#{consignTime},#{endTime},#{closeTime},#{shippingName},#{shippingCode},
+#{userId},#{buyerMessage},#{buyerNick},#{buyerRate},now(),now())
+;	
+
+
+insert into tb_order_item
+(item_id,order_id,num,title,price,total_fee,pic_path)
+values
+<foreach collection="orderItems" item="item" separator=",">
+ (#{item.itemId},#{orderId},#{item.num},#{item.title},#{item.price},#{item.totalFee},#{item.picPath})
+</foreach>
+;
+
+insert into tb_order_shipping
+(order_id,receiver_name,receiver_phone,receiver_mobile,
+receiver_state,receiver_city,receiver_district,receiver_address,
+receiver_zip,created,updated)
+values(#{orderId},#{orderShipping.receiverName},#{orderShipping.receiverPhone},#{orderShipping.receiverMobile},
+#{orderShipping.receiverState},#{orderShipping.receiverCity},#{orderShipping.receiverDistrict},#{orderShipping.receiverAddress},
+#{orderShipping.receiverZip},now(),now())
+;
+    </insert>
+    <!-- 查询某个订单 -->
+    <select id="queryByOrderId" parameterType="string" resultMap="orderRM">
+        select * from tb_order where order_id=#{orderId}
+    </select>
+    <!-- 查询某个订单下的所有的商品 -->
+    <select id="queryOrderItemByOrderId" parameterType="string"  resultType="OrderItem">
+        select * from tb_order_item where order_id=#{orderId}
+    </select>
+    <!-- 查询某个订单下的物流信息 -->
+    <select id="queryOrderShippingByOrderId" parameterType="string" resultType="OrderShipping">
+       select * from tb_order_shipping where order_id=#{orderId}
+    </select>
+    
+    	<!-- 未支付订单定时任务 -->
+	<update id="paymentOrderScan" parameterType="date">
+   UPDATE tb_order SET STATUS=6,close_time=NOW()
+    WHERE payment_type=1 AND STATUS=1 AND create_time &lt;= #{date}
+	</update>
+    
+</mapper>
